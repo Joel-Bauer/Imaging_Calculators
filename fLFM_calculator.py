@@ -1,5 +1,13 @@
 import numpy as np
 
+print('## The purpose of this calculator is to help design a fourier light field microscope.')
+print('## The calculations are based on Galdón et al., 2022. Fourier lightfield microscopy: a practical design guide. DOI: 10.1364/ao.453723')
+print('* Start with the imaging specs you want to achieve (hard-coded in the script)')
+print('* Decide on a camera')
+print('* Find a microlens arrray/lenslet array that fits')
+print('* Choose objective lens and aperture stop')
+print('* Calculate relay and field stop')
+
 #functions
 def pitch(sensor_size,N):
     P = sensor_size/N
@@ -111,10 +119,6 @@ print('MLA focal length = ' + str(fMLA) + ' mm')
 print('\ndecide on SLR focal length, and beam path length')
 fMO = float(input('Choose fMO in mm (for SLR this might be 20 and 50): '))
 AS_chosen = 2 * fMO * np.tan(np.arcsin(NAobj_res))
-if AS_chosen < 0:
-    #error
-    print('Error: negative aperture stop...')
-    exit()
 
 # determine relay
 beam_path = float(input('\nChoose beam path length in mm (~400): '))
