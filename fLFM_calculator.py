@@ -6,7 +6,7 @@ print('* Start with the imaging specs you want to achieve (hard-coded in the scr
 print('* Decide on a camera')
 print('* Find a microlens arrray/lenslet array that fits')
 print('* Choose objective lens and aperture stop')
-print('* Calculate relay and field stop')
+print('* Calculate relay and field stop\n')
 
 #functions
 def pitch(sensor_size,N):
@@ -61,10 +61,14 @@ def field_of_view(P,Mt):
     FOV = P/Mt
     return FOV
 
+def paralax_angle(f1,f2,fMO,P):
+    sigma = P*f1/f2/fMO
+    return sigma
+
 # LETS GO!!
-print('targets and constraints')
-N=float(input('Number of elemental images (3, 5 or 7): '))
-FOV_target = float(input('target field of view in mm (eg. 3): ')) # in mm, 
+print('Targets and constraints')
+N=float(input('Number of elemental images (3, 5 or 7): ').strip() or '5')
+FOV_target = float(input('target field of view in mm (eg. 3): ').strip() or '3') # in mm, 
 DOF_target = 0.2 # in mm, 200um
 Lambda_emission = 0.00051 # in nm, 510nm
 size_of_neuron = 0.015 # in mm, 15um
@@ -77,8 +81,8 @@ print('depth of field target = ' + str(DOF_target) + ' mm')
 print('\n')
 
 print('decide on camera parameters')
-Mpix = float(input('Camera megapixels (eg 67): '))
-delta = float(input('Pixel size in um (eg 2.6): '))
+Mpix = float(input('Camera megapixels (eg 67): ').strip() or '67')
+delta = float(input('Pixel size in um (eg 2.6): ').strip() or '2.6')
 delta = delta/1000 # in mm
 sensor_size =  np.sqrt(Mpix*10**6)*delta # in mm
 print('\nCamera: ' + str(Mpix) + ' Mpix, ' + str(delta) + ' um pixel size, ' + str(round(sensor_size,2)) + ' mm sensor size')
@@ -110,18 +114,18 @@ print('\n')
 
 # choose MLA
 print('find MLA with pitch as close to max as possible and enter pitch and fMLA')
-P = float(input('Choose P in mm (=<' + str(round(P,4)) +'): '))
-fMLA = float(input('Choose fMLA in mm (~10xP): '))
+P = float(input('Choose P in mm (=<' + str(round(P,4)) +'): ').strip() or str(round(P,4)))
+fMLA = float(input('Choose fMLA in mm (~10xP): ').strip() or str(round(10*P,2)))
 print('MLA pitch = ' + str(round(P,2)) + ' mm')
 print('MLA focal length = ' + str(fMLA) + ' mm')
 
 # choose objective 
 print('\ndecide on SLR focal length, and beam path length')
-fMO = float(input('Choose fMO in mm (for SLR this might be 20 and 50): '))
+fMO = float(input('Choose fMO in mm (for SLR this might 50): ').strip() or '50')
 AS_chosen = 2 * fMO * np.tan(np.arcsin(NAobj_res))
 
 # determine relay
-beam_path = float(input('\nChoose beam path length in mm (~400): '))
+beam_path = float(input('\nChoose beam path length in mm (~400): ').strip() or '400')
 Mr = relay_magnification(Mt,fMLA,fMO)
 f2 = second_relay_f(beam_path,Mr)
 f1 = first_relay_f(f2,Mr)
@@ -130,6 +134,7 @@ print('relay magnification = ' + str(round(Mr,2)))
 print('first relay focal length = ' + str(round(f1,2)) + ' mm')
 print('second relay focal length = ' + str(round(f2,2)) + ' mm')
 print('field stop = ' + str(round(FS,2)) + ' mm')
+
 
 # summary
 print('\n----- Final Specs ----')
@@ -143,11 +148,15 @@ print('Relay: f1 = ' + str(round(f1,2)) + ' mm, f2 = ' + str(round(f2,2)) + ' mm
 res = resolution(Lambda_emission,NAobj_res,delta,Mt)
 DOF = depth_of_field(Lambda_emission,NAobj_res,delta,Mt)
 FOV = field_of_view(P,Mt)
+sigma = paralax_angle(f1,f2,fMO,P)
 print('\nSpecs')
 print('number of elemental images = ' + str(N))
 print('Resolution = ' + str(round(res*1000,2)) + ' um')
 print('depth of field = ' + str(round(DOF,2)) + ' mm')
 print('field of view = ' + str(round(FOV,2)) + ' mm')
+print('total magnification = x' + str(round(Mt,2)))
+print('effective NA = ' + str(round(NAobj_res/N,2)))
+print('Paralax angle = ' + str(round(sigma,2)) + ' degrees')
 print('\n')
 print('------------------------')
-print('\n)')
+print('\n')
