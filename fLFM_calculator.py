@@ -9,28 +9,40 @@ print('* Choose objective lens and aperture stop')
 print('* Calculate relay and field stop\n')
 
 #functions
-def pitch(sensor_size,N):
+def pitch_suggestion(sensor_size,N):
     P = sensor_size/N
     return P
 
-def necessary_total_magnification(FOV_target,P):
+def NAef_of_MLA(P,fMLA):
+    NAef = np.sin(np.arctan(P/fMLA/2))
+    return NAef
+
+def necessary_total_magnification_for_FOV(FOV_target,P):
     Mt = P/FOV_target
     return Mt
 
-def necessary_NAobj_given_res(Lambda_emission,resolution_target,Mt,delta):
-    NAobj = Lambda_emission/(2*resolution_target-4*delta/Mt)
-    return NAobj
+def necessary_total_magnification_for_resolution(Lambda, resolution_target,NAef,delta):
+    Mt = 2*delta/(resolution_target-Lambda/NAef/2)
+    return Mt
 
-def depth_of_field(Lambda_emission,NAobj,delta,Mt):
-    DOF = 2*Lambda_emission/(NAobj**2) + delta/(Mt*NAobj)
+def necessary_total_magnification_for_DOF(Lambda, DOF_target,NAef,delta):
+    Mt = delta*NAef/(DOF_target*NAef**2 - Lambda)
+    return Mt
+
+def depth_of_field(Lambda_emission,NAef,delta,Mt):
+    DOF = 2*Lambda_emission/(NAef**2) + delta/(Mt*NAef)
     return DOF
 
-def objective_NA_given_DOF(DOF,Lambda_emission,delta,Mt):
-    NAobj = (np.sqrt(delta**2 + 8*DOF*Lambda_emission*Mt**2) - delta)/(2*DOF*Mt)
-    return NAobj
+def NAef_given_target_resolution(Lambda_emission,resolution_target,Mt,delta):
+    NAef = Lambda_emission/(2*(resolution_target-2*delta/Mt))
+    return NAef
 
-def resolution_given_NA(Lambda_emission,NAobj,delta,Mt):
-    res = Lambda_emission/(2*NAobj) + 2*delta/Mt
+def Nef_given_target_DOF(Lambda_emission,DOFef_target,Mt,delta):
+    NAef = (np.sqrt(delta**2 + 4*DOFef_target*Lambda_emission*Mt**2) + delta)/(2*DOF_target*Mt)
+    return NAef
+
+def resolution(Lambda_emission,NAef,delta,Mt):
+    res = Lambda_emission/(2*NAef) + 2*delta/Mt
     return res
 
 def relay_magnification(Mt,fMLA,fMO):
@@ -49,13 +61,9 @@ def field_stop(P,f2,fMLA):
     FS = P*f2/fMLA
     return FS
 
-def resolution(Lambda_emission,NAobj,delta,Mt):
-    res = Lambda_emission/(2*NAobj) + 2*delta/Mt
-    return res
-
-def depth_of_field(Lambda_emission,NAobj,delta,Mt):
-    DOF = 2*Lambda_emission/(NAobj**2) + delta/(Mt*NAobj)
-    return DOF
+def aperture_stop(NAobj,fMO):
+    ASobj = 2*np.tan(np.arctan(NAobj))*fMO
+    return ASobj
 
 def field_of_view(P,Mt):
     FOV = P/Mt
@@ -65,64 +73,76 @@ def paralax_angle(f1,f2,fMO,P):
     sigma = P*f1/f2/fMO
     return sigma
 
+def delta_z(fMLA, P, delta, Mt):
+    delta_z = (fMLA/P)*delta/Mt**2
+    return delta_z
+
 # LETS GO!!
 print('Targets and constraints')
-N=float(input('Number of elemental images (3, 5 or 7): ').strip() or '5')
-FOV_target = float(input('target field of view in mm (eg. 3): ').strip() or '3') # in mm, 
-DOF_target = 0.2 # in mm, 200um
 Lambda_emission = 0.00051 # in nm, 510nm
 size_of_neuron = 0.015 # in mm, 15um
 sampling_factor = 2.5 # choose in pixels per cell, just a little higher than the Nyquist rate
-resolution_target = size_of_neuron/sampling_factor# in mm, 5um is alternative
-print(str(N) + ' Elemental images')
-print('field of view target = ' + str(round(FOV_target,2)) + ' mm')
-print('resolution target = ' + str(round(resolution_target*1000,2)) + ' um')
-print('depth of field target = ' + str(DOF_target) + ' mm')
+resolution_target_suggestion = size_of_neuron/sampling_factor# in mm, `6um is alternative
+FPV_target_suggestion = 3 # in mm, 3mm
+DOF_target_suggestion = 0.2 # in mm, 200um
+# INPUTS
+N=float(input('Number of elemental images (5, 3 or 7): ').strip() or '5')
+
 print('\n')
 
-print('decide on camera parameters')
-Mpix = float(input('Camera megapixels (eg 67): ').strip() or '67')
-delta = float(input('Pixel size in um (eg 2.6): ').strip() or '2.6')
+print('decide on camera specs')
+Mpix = float(input('Camera megapixels (eg 67): ').strip() or '67') # INPUTS
+delta = float(input('Pixel size in um (eg 2.5): ').strip() or '2.5') # INPUTS
 delta = delta/1000 # in mm
 sensor_size =  np.sqrt(Mpix*10**6)*delta # in mm
 print('\nCamera: ' + str(Mpix) + ' Mpix, ' + str(delta) + ' um pixel size, ' + str(round(sensor_size,2)) + ' mm sensor size')
 print('\n')
 
-# calculations recomended MLA pitch
-P = pitch(sensor_size,N)
-print('maximum MLA pitch = ' + str(round(P,3)) + ' mm')
-
-# base NA on resolution
-Mt = necessary_total_magnification(FOV_target,P)
-NAobj_res=necessary_NAobj_given_res(Lambda_emission,resolution_target,Mt,delta)
-DOF = depth_of_field(Lambda_emission,NAobj_res,delta,Mt)
-print('necessary total magnification = x' + str(round(Mt,2)))
-print('necessary objective NA based on res target of ' + str(round(resolution_target*1000,2)) + ' um = ' + str(round(NAobj_res,2)))
-print('depth of field = ' + str(round(DOF,2)) + ' mm')
-if NAobj_res < 0:
-    #error
-    print('Error: negative aperture stop...')
-    print('try smaller target field of view or larger pixel size')
-    exit()
-
-# NA based on depth of field
-NAobj_DOF = objective_NA_given_DOF(DOF_target,Lambda_emission,delta,Mt)
-res = resolution_given_NA(Lambda_emission,NAobj_DOF,delta,Mt)
-print('OR\nnecessary objective NA based on DOF target of ' + str(DOF_target) + ' mm = ' + str(round(NAobj_DOF,2)))
-print('Resolution = ' + str(round(res*1000,2)) + ' um')
-print('\n')
-
 # choose MLA
+# calculations recommended MLA pitch
+P = pitch_suggestion(sensor_size,N)
+print('maximum MLA pitch = ' + str(round(P,3)) + ' mm')
 print('find MLA with pitch as close to max as possible and enter pitch and fMLA')
-P = float(input('Choose P in mm (=<' + str(round(P,4)) +'): ').strip() or str(round(P,4)))
-fMLA = float(input('Choose fMLA in mm (~10xP): ').strip() or str(round(10*P,2)))
-print('MLA pitch = ' + str(round(P,2)) + ' mm')
-print('MLA focal length = ' + str(fMLA) + ' mm')
+P = float(input('Choose P in mm (<' + str(round(P,4)) +'): ').strip() or str(round(P,4))) # INPUTS
+fMLA = float(input('Choose fMLA in mm (~10xP): ').strip() or str(round(10*P,2))) # INPUTS
+NAef = NAef_of_MLA(P,fMLA)
+print('MLA pitch = ' + str(round(P,2)) + ' mm, focal length = ' + str(fMLA) + ' mm, NA = ' + str(round(NAef,2)))
+print('min objective NA to match MLA NA: ' + str(round(NAef*N,2)))
 
 # choose objective 
-print('\ndecide on SLR focal length, and beam path length')
-fMO = float(input('Choose fMO in mm (for SLR this might 50): ').strip() or '50')
-AS_chosen = 2 * fMO * np.tan(np.arcsin(NAobj_res))
+fMO = float(input('Choose fMO in mm (for Nikon 4X = 17.2): ').strip() or '17.2') #INPUTS
+ASobj_min = aperture_stop(NAef*N,fMO)
+
+choose_target_parameter = input('Choose target resolution (r), target field of view (f) or target depth of field (d): ').strip() or 'r'
+if choose_target_parameter == 'r':
+    resolution_target = float(input('target resolution in um (eg. ' + str(round(resolution_target_suggestion*1000,1)) + '):').strip() or 
+                          str(round(resolution_target_suggestion*1000,1)))/1000 # in mm
+    Mt = necessary_total_magnification_for_resolution(Lambda_emission,resolution_target,NAef,delta)
+    FOV = field_of_view(P,Mt)
+    DOF = depth_of_field(Lambda_emission,NAef,delta,Mt)
+    print('necessary total magnification to get resolution = x' + str(round(Mt,2)))
+    print('field of view = ' + str(round(FOV,2)) + ' mm')
+    print('depth of field = ' + str(round(DOF,2)) + ' mm')
+
+elif choose_target_parameter == 'f':
+    FOV_target = float(input('target field of view in mm (eg. 3): ').strip() or '3')
+    Mt = necessary_total_magnification_for_FOV(FOV_target,P)
+    res = resolution(Lambda_emission,NAef,delta,Mt)
+    DOF = depth_of_field(Lambda_emission,NAef,delta,Mt)
+    print('necessary total magnification to get FOV = x' + str(round(Mt,2)))
+    print('resolution = ' + str(round(res*1000,2)) + ' um')
+    print('depth of field = ' + str(round(DOF,2)) + ' mm')
+
+elif choose_target_parameter == 'd':
+    DOF_target = float(input('target depth of field in mm (eg. 0.2): ').strip() or '0.2')
+    Mt = necessary_total_magnification_for_DOF(Lambda_emission, DOF_target,NAef,delta)
+    res = resolution(Lambda_emission,NAef,delta,Mt)
+    DOF = depth_of_field(Lambda_emission,NAef,delta,Mt)
+    print('necessary total magnification to get FOV = x' + str(round(Mt,2)))
+    print('resolution = ' + str(round(res*1000,2)) + ' um')
+    print('depth of field = ' + str(round(DOF,2)) + ' mm')
+
+print('\n')
 
 # determine relay
 beam_path = float(input('\nChoose beam path length in mm (~400): ').strip() or '400')
@@ -135,28 +155,31 @@ print('first relay focal length = ' + str(round(f1,2)) + ' mm')
 print('second relay focal length = ' + str(round(f2,2)) + ' mm')
 print('field stop = ' + str(round(FS,2)) + ' mm')
 
-
 # summary
 print('\n----- Final Specs ----')
 print('\nComponents')
 print('Camera: ' + str(Mpix) + ' Mpix, pixel size ' + str(delta) + ' mm, sensor size ' + str(round(sensor_size,2)) + ' mm')
-print('MLA: pitch = ' + str(round(P,3)) + ' mm, focal length = ' + str(round(fMLA,2)) + ' mm')
-print('Objective: focal length ' + str(round(fMO,2)) + ' mm, objective aperture stop = ' + str(round(AS_chosen,2)) + ' mm')
+print('MLA: pitch = ' + str(round(P,3)) + ' mm, focal length = ' + str(round(fMLA,2)) + ' mm', 'NA = ' + str(round(NAef,2)))
+print('Objective: focal length ' + str(round(fMO,2)) + ' mm, objective aperture stop = ' + str(round(ASobj_min,2))
+       + ' mm, min NA = ' + str(round(NAef*N,2)))
 print('Relay: f1 = ' + str(round(f1,2)) + ' mm, f2 = ' + str(round(f2,2)) + ' mm' + ', field stop = ' + str(round(FS,2)) + ' mm')
 
 # recalculate microscope specs
-res = resolution(Lambda_emission,NAobj_res,delta,Mt)
-DOF = depth_of_field(Lambda_emission,NAobj_res,delta,Mt)
+res = resolution(Lambda_emission,NAef,delta,Mt)
+DOF = depth_of_field(Lambda_emission,NAef,delta,Mt)
 FOV = field_of_view(P,Mt)
 sigma = paralax_angle(f1,f2,fMO,P)
+delta_z = delta_z(fMLA, P, delta, Mt)
 print('\nSpecs')
 print('number of elemental images = ' + str(N))
 print('Resolution = ' + str(round(res*1000,2)) + ' um')
+print('um per pixel = ' + str(round(delta/Mt*1000,2)) + ' um')
 print('depth of field = ' + str(round(DOF,2)) + ' mm')
 print('field of view = ' + str(round(FOV,2)) + ' mm')
 print('total magnification = x' + str(round(Mt,2)))
-print('effective NA = ' + str(round(NAobj_res/N,2)))
-print('Paralax angle = ' + str(round(sigma,2)) + ' degrees')
+print('effective NA = ' + str(round(NAef,2)))
+print('parallax angle = ' + str(round(sigma,2)) + ' degrees')
+print('axial distance related to 1-pixel shift = ' + str(round(delta_z*1000,2)) + ' um')
 print('\n')
 print('------------------------')
 print('\n')
