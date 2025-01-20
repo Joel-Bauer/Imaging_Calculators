@@ -71,7 +71,7 @@ def field_of_view(P,Mt):
 
 def paralax_angle(f1,f2,fMO,P):
     sigma = P*f1/f2/fMO
-    return sigma
+    return np.rad2deg(sigma)
 
 def delta_z(fMLA, P, delta, Mt):
     delta_z = (fMLA/P)*delta/Mt**2
@@ -85,14 +85,13 @@ sampling_factor = 2.5 # choose in pixels per cell, just a little higher than the
 resolution_target_suggestion = size_of_neuron/sampling_factor# in mm, `6um is alternative
 FPV_target_suggestion = 3 # in mm, 3mm
 DOF_target_suggestion = 0.2 # in mm, 200um
-# INPUTS
-N=float(input('Number of elemental images (5, 3 or 7): ').strip() or '5')
+N=float(input('Number of elemental images (5, 3 or 7): ').strip() or '5') # INPUT
 
 print('\n')
 
 print('decide on camera specs')
-Mpix = float(input('Camera megapixels (eg 67): ').strip() or '67') # INPUTS
-delta = float(input('Pixel size in um (eg 2.5): ').strip() or '2.5') # INPUTS
+Mpix = float(input('Camera megapixels (eg 67): ').strip() or '67') # INPUT
+delta = float(input('Pixel size in um (eg 2.5): ').strip() or '2.5') # INPUT
 delta = delta/1000 # in mm
 sensor_size =  np.sqrt(Mpix*10**6)*delta # in mm
 print('\nCamera: ' + str(Mpix) + ' Mpix, ' + str(delta) + ' um pixel size, ' + str(round(sensor_size,2)) + ' mm sensor size')
@@ -110,13 +109,15 @@ print('MLA pitch = ' + str(round(P,2)) + ' mm, focal length = ' + str(fMLA) + ' 
 print('min objective NA to match MLA NA: ' + str(round(NAef*N,2)))
 
 # choose objective 
-fMO = float(input('Choose fMO in mm (for Nikon 4X = 17.2): ').strip() or '17.2') #INPUTS
+fMO = float(input('Choose fMO in mm (for Nikon 10X/0.3NA = 20): ').strip() or '20') #INPUTS
 ASobj_min = aperture_stop(NAef*N,fMO)
 
-choose_target_parameter = input('Choose target resolution (r), target field of view (f) or target depth of field (d): ').strip() or 'r'
+
+choose_target_parameter = input('Choose target resolution (r), target field of view (f), \n,' + 
+                                'target depth of field (d), or calculate specs based on given relay (c): ').strip() or 'r'
 if choose_target_parameter == 'r':
     resolution_target = float(input('target resolution in um (eg. ' + str(round(resolution_target_suggestion*1000,1)) + '):').strip() or 
-                          str(round(resolution_target_suggestion*1000,1)))/1000 # in mm
+                          str(round(resolution_target_suggestion*1000,1)))/1000 # in mm 
     Mt = necessary_total_magnification_for_resolution(Lambda_emission,resolution_target,NAef,delta)
     FOV = field_of_view(P,Mt)
     DOF = depth_of_field(Lambda_emission,NAef,delta,Mt)
@@ -142,18 +143,32 @@ elif choose_target_parameter == 'd':
     print('resolution = ' + str(round(res*1000,2)) + ' um')
     print('depth of field = ' + str(round(DOF,2)) + ' mm')
 
+# if  choose_target_parameter not c
+if choose_target_parameter != 'c':
+    # determine relay
+    beam_path = float(input('\nChoose beam path length in mm (~600): ').strip() or '600')
+    Mr = relay_magnification(Mt,fMLA,fMO)
+    f2 = second_relay_f(beam_path,Mr)
+    f1 = first_relay_f(f2,Mr)
+    FS = field_stop(P,f2,fMLA)
+elif choose_target_parameter == 'c':
+    f1 = float(input('f1 in mm (eg 200): ').strip() or '200')
+    f2 = float(input('f2 in mm (eg 100): ').strip() or '100')
+    Mr = f2/f1
+    FS = field_stop(P,f2,fMLA)
+    Mt = fMLA/fMO/Mr
 print('\n')
 
-# determine relay
-beam_path = float(input('\nChoose beam path length in mm (~400): ').strip() or '400')
-Mr = relay_magnification(Mt,fMLA,fMO)
-f2 = second_relay_f(beam_path,Mr)
-f1 = first_relay_f(f2,Mr)
-FS = field_stop(P,f2,fMLA)
-print('relay magnification = ' + str(round(Mr,2)))
-print('first relay focal length = ' + str(round(f1,2)) + ' mm')
-print('second relay focal length = ' + str(round(f2,2)) + ' mm')
-print('field stop = ' + str(round(FS,2)) + ' mm')
+# recalculate microscope specs
+res = resolution(Lambda_emission,NAef,delta,Mt)
+DOF = depth_of_field(Lambda_emission,NAef,delta,Mt)
+FOV = field_of_view(P,Mt)
+sigma = paralax_angle(f1,f2,fMO,P)
+delta_z = delta_z(fMLA, P, delta, Mt)
+
+# relay lens diameters
+min_diam_f1 = FOV*f1/fMO # mm (not sure this is correct)
+min_diam_f2 = min_diam_f1*f2/f1 # mm (not sure this is correct)
 
 # summary
 print('\n----- Final Specs ----')
@@ -162,21 +177,17 @@ print('Camera: ' + str(Mpix) + ' Mpix, pixel size ' + str(delta) + ' mm, sensor 
 print('MLA: pitch = ' + str(round(P,3)) + ' mm, focal length = ' + str(round(fMLA,2)) + ' mm', 'NA = ' + str(round(NAef,2)))
 print('Objective: focal length ' + str(round(fMO,2)) + ' mm, objective aperture stop = ' + str(round(ASobj_min,2))
        + ' mm, min NA = ' + str(round(NAef*N,2)))
-print('Relay: f1 = ' + str(round(f1,2)) + ' mm, f2 = ' + str(round(f2,2)) + ' mm' + ', field stop = ' + str(round(FS,2)) + ' mm')
+print('Relay: f1 = ' + str(round(f1,2)) + ' mm (min diam ' + str(round(min_diam_f1)) + ' mm),' +
+    'f2 = ' + str(round(f2,2)) + ' mm(min diam ' + str(round(min_diam_f2)) + ' mm),' +
+    'field stop = ' + str(round(FS,2)) + ' mm')
 
-# recalculate microscope specs
-res = resolution(Lambda_emission,NAef,delta,Mt)
-DOF = depth_of_field(Lambda_emission,NAef,delta,Mt)
-FOV = field_of_view(P,Mt)
-sigma = paralax_angle(f1,f2,fMO,P)
-delta_z = delta_z(fMLA, P, delta, Mt)
 print('\nSpecs')
 print('number of elemental images = ' + str(N))
 print('Resolution = ' + str(round(res*1000,2)) + ' um')
 print('um per pixel = ' + str(round(delta/Mt*1000,2)) + ' um')
 print('depth of field = ' + str(round(DOF,2)) + ' mm')
 print('field of view = ' + str(round(FOV,2)) + ' mm')
-print('total magnification = x' + str(round(Mt,2)))
+print('total magnification = x' + str(round(Mt,2)), 'relay magnification = ' + str(round(Mr,2)))
 print('effective NA = ' + str(round(NAef,2)))
 print('parallax angle = ' + str(round(sigma,2)) + ' degrees')
 print('axial distance related to 1-pixel shift = ' + str(round(delta_z*1000,2)) + ' um')
